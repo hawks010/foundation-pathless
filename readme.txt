@@ -3,7 +3,7 @@ Contributors: inkfire
 Tags: links, broken links, 404, seo, maintenance, accessibility
 Requires at least: 5.5
 Tested up to: 6.5
-Stable tag: 1.5.2
+Stable tag: 1.5.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,9 @@ Pathless runs in the background, scanning your site's posts and pages for broken
 3. Navigate to **Foundation > Pathless** in the admin menu to view the dashboard and start a scan.
 
 == Changelog ==
+
+= 1.5.3 =
+* Synced the dashboard with the canonical shared Foundation admin shell assets.
 
 = 1.5.2 =
 * Rebuilt the admin dashboard on the shared Foundation shell while preserving the existing scan, dismiss, and settings flows.

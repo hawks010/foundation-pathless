@@ -316,6 +316,27 @@
   line-height: 1.65;
 }
 
+.foundation-admin-rich .foundation-admin-list {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.foundation-admin-rich .foundation-admin-list li {
+  padding: 16px;
+  border: 1px solid var(--foundation-border);
+  border-radius: 18px;
+  background: var(--foundation-surface-strong);
+}
+
+.foundation-admin-rich .foundation-admin-list strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--foundation-ink);
+}
+
 .foundation-admin-rich .fp-stats-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

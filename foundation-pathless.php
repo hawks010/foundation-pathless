@@ -3,7 +3,7 @@
  * Plugin Name:       Foundation: Pathless
  * Plugin URI:        https://github.com/hawks010/foundation-pathless
  * Description:       Finds broken links, unreachable URLs, and failed redirects before your visitors do. Part of the Foundation series by Inkfire Limited.
- * Version:           1.5.2
+ * Version:           1.5.3
  * Author:            Sonny x Inkfire
  * Author URI:        https://inkfire.co.uk/
  * License:           GPLv2 or later
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) exit;
 /* -------------------------------------------------------------------------
  * Constants (plugin-scoped) + legacy aliases
  * ------------------------------------------------------------------------- */
-if (!defined('FP_PATHLESS_VERSION'))     define('FP_PATHLESS_VERSION', '1.5.2');
+if (!defined('FP_PATHLESS_VERSION'))     define('FP_PATHLESS_VERSION', '1.5.3');
 if (!defined('FP_PATHLESS_PLUGIN_FILE')) define('FP_PATHLESS_PLUGIN_FILE', __FILE__);
 if (!defined('FP_PATHLESS_PLUGIN_PATH')) define('FP_PATHLESS_PLUGIN_PATH', plugin_dir_path(FP_PATHLESS_PLUGIN_FILE));
 if (!defined('FP_PATHLESS_PLUGIN_URL'))  define('FP_PATHLESS_PLUGIN_URL', plugin_dir_url(FP_PATHLESS_PLUGIN_FILE));
