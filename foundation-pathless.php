@@ -3,7 +3,7 @@
  * Plugin Name:       Foundation: Pathless
  * Plugin URI:        https://github.com/hawks010/foundation-pathless
  * Description:       Finds broken links, unreachable URLs, and failed redirects before your visitors do. Part of the Foundation series by Inkfire Limited.
- * Version:           1.5.3
+ * Version:           1.5.4
  * Author:            Sonny x Inkfire
  * Author URI:        https://inkfire.co.uk/
  * License:           GPLv2 or later
@@ -18,10 +18,12 @@ if (!defined('ABSPATH')) exit;
 /* -------------------------------------------------------------------------
  * Constants (plugin-scoped) + legacy aliases
  * ------------------------------------------------------------------------- */
-if (!defined('FP_PATHLESS_VERSION'))     define('FP_PATHLESS_VERSION', '1.5.3');
+if (!defined('FP_PATHLESS_VERSION'))     define('FP_PATHLESS_VERSION', '1.5.4');
 if (!defined('FP_PATHLESS_PLUGIN_FILE')) define('FP_PATHLESS_PLUGIN_FILE', __FILE__);
 if (!defined('FP_PATHLESS_PLUGIN_PATH')) define('FP_PATHLESS_PLUGIN_PATH', plugin_dir_path(FP_PATHLESS_PLUGIN_FILE));
 if (!defined('FP_PATHLESS_PLUGIN_URL'))  define('FP_PATHLESS_PLUGIN_URL', plugin_dir_url(FP_PATHLESS_PLUGIN_FILE));
+if (!defined('FP_PATHLESS_CORE_SLUG'))   define('FP_PATHLESS_CORE_SLUG', 'foundation-pathless');
+if (!defined('FP_PATHLESS_MIN_CORE'))    define('FP_PATHLESS_MIN_CORE', '0.1.0');
 
 // Legacy aliases for older includes that expect FP_* (define only if missing)
 if (!defined('FP_VERSION'))      define('FP_VERSION', FP_PATHLESS_VERSION);
@@ -34,6 +36,141 @@ require_once FP_PATHLESS_PLUGIN_PATH . 'includes/class-fp-github-updater.php';
 if (class_exists('Foundation_Pathless_Github_Updater') && method_exists('Foundation_Pathless_Github_Updater', 'instance')) {
     Foundation_Pathless_Github_Updater::instance();
 }
+
+/* -------------------------------------------------------------------------
+ * Foundation Core integration
+ * ------------------------------------------------------------------------- */
+function foundation_pathless_core_is_available(): bool {
+    return function_exists('foundation_core_register_addon')
+        && defined('FOUNDATION_CORE_VERSION')
+        && version_compare(FOUNDATION_CORE_VERSION, FP_PATHLESS_MIN_CORE, '>=');
+}
+
+function foundation_pathless_log_to_core(string $level, string $event, array $context = []): void {
+    if (function_exists('foundation_core_log_event')) {
+        foundation_core_log_event($level, $event, $context, FP_PATHLESS_CORE_SLUG);
+    }
+}
+
+function foundation_pathless_is_isolated_by_core(): bool {
+    if (!function_exists('foundation_core_get_safe_mode_manager')) {
+        return false;
+    }
+
+    $manager = foundation_core_get_safe_mode_manager();
+    return is_object($manager)
+        && method_exists($manager, 'is_isolated')
+        && $manager->is_isolated(FP_PATHLESS_CORE_SLUG);
+}
+
+function foundation_pathless_register_with_core(): void {
+    if (!function_exists('foundation_core_register_addon')) {
+        return;
+    }
+
+    $result = foundation_core_register_addon([
+        'slug'                  => FP_PATHLESS_CORE_SLUG,
+        'name'                  => 'Foundation: Pathless',
+        'version'               => FP_PATHLESS_VERSION,
+        'type'                  => 'commercial-addon',
+        'channel'               => 'stable',
+        'min_core_version'      => FP_PATHLESS_MIN_CORE,
+        'requires_license'      => true,
+        'admin_page_slug'       => 'foundation-pathless-dashboard',
+        'product_url'           => 'https://inkfire.co.uk/',
+        'support_url'           => 'https://inkfire.co.uk/',
+        'docs_url'              => 'https://inkfire.co.uk/',
+        'module_class'          => 'Foundation_Pathless',
+        'health_check_callback' => 'foundation_pathless_health_check',
+        'status'                => foundation_pathless_is_isolated_by_core() ? 'isolated' : 'active',
+    ]);
+
+    if (is_wp_error($result)) {
+        foundation_pathless_log_to_core(
+            'error',
+            'addon_registration_failed',
+            [
+                'code'    => $result->get_error_code(),
+                'message' => $result->get_error_message(),
+            ]
+        );
+        return;
+    }
+
+    foundation_pathless_log_to_core(
+        'info',
+        'addon_registered_with_core',
+        [
+            'version'          => FP_PATHLESS_VERSION,
+            'min_core_version' => FP_PATHLESS_MIN_CORE,
+        ]
+    );
+}
+add_action('foundation_core_register_addons', 'foundation_pathless_register_with_core');
+
+function foundation_pathless_health_check(array $addon = [], array $context = [], $registry = null): array {
+    global $wpdb;
+
+    $table = $wpdb->prefix . 'fp_links';
+    $table_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) === $table;
+    $critical_classes = [
+        'FP_Core' => class_exists('FP_Core'),
+        'FP_Database' => class_exists('FP_Database'),
+        'FP_Scanner' => class_exists('FP_Scanner'),
+        'FP_Background_Scanner' => class_exists('FP_Background_Scanner'),
+    ];
+    $missing = array_keys(array_filter($critical_classes, static function ($present) {
+        return !$present;
+    }));
+
+    $state = ($table_exists && empty($missing)) ? 'ok' : 'degraded';
+
+    return [
+        'state' => $state,
+        'message' => 'ok' === $state
+            ? __('Pathless scanner, database table, and background worker are available.', 'foundation-pathless')
+            : __('Pathless is running, but one or more runtime checks are degraded.', 'foundation-pathless'),
+        'data' => [
+            'table_exists' => $table_exists,
+            'missing_classes' => $missing,
+            'scan_status' => get_option('fp_scan_status', 'idle'),
+            'scheduled_scan_enabled' => (bool) get_option('fp_enable_scheduled_scan', false),
+        ],
+        'context' => $context,
+    ];
+}
+
+function foundation_pathless_core_notice(): void {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    if (foundation_pathless_core_is_available()) {
+        return;
+    }
+
+    $message = function_exists('foundation_core_register_addon')
+        ? sprintf(
+            /* translators: %s: minimum Foundation Core version. */
+            __('Foundation: Pathless is running in legacy mode because Foundation Core is older than %s.', 'foundation-pathless'),
+            FP_PATHLESS_MIN_CORE
+        )
+        : __('Foundation: Pathless is running in legacy mode until Foundation Core is installed and active.', 'foundation-pathless');
+
+    echo '<div class="notice notice-warning"><p><strong>Foundation: Pathless</strong> — ' . esc_html($message) . '</p></div>';
+}
+add_action('admin_notices', 'foundation_pathless_core_notice');
+
+function foundation_pathless_safe_mode_notice(): void {
+    if (!current_user_can('manage_options') || !foundation_pathless_is_isolated_by_core()) {
+        return;
+    }
+
+    echo '<div class="notice notice-error"><p><strong>Foundation: Pathless</strong> — '
+        . esc_html__('This addon is currently isolated by Foundation Core safe mode. Restore it from Foundation > Addons when you are ready to re-enable Pathless runtime hooks.', 'foundation-pathless')
+        . '</p></div>';
+}
+add_action('admin_notices', 'foundation_pathless_safe_mode_notice');
 
 /* -------------------------------------------------------------------------
  * Safe Activation / Deactivation (captures unexpected output)
@@ -162,8 +299,35 @@ final class Foundation_Pathless
      * Load dependencies and initialise components.
      */
     public function init_plugin() {
+        foundation_pathless_log_to_core(
+            'info',
+            'addon_bootstrap_started',
+            [
+                'version' => FP_PATHLESS_VERSION,
+                'core_available' => foundation_pathless_core_is_available(),
+            ]
+        );
+
         if (!$this->load_dependencies()) {
             // Missing dependencies: admin notice already queued in loader.
+            foundation_pathless_log_to_core(
+                'error',
+                'addon_bootstrap_dependency_failure',
+                [
+                    'version' => FP_PATHLESS_VERSION,
+                ]
+            );
+            return;
+        }
+
+        if (foundation_pathless_is_isolated_by_core()) {
+            foundation_pathless_log_to_core(
+                'warning',
+                'addon_bootstrap_skipped_safe_mode',
+                [
+                    'reason' => 'core_safe_mode_isolated',
+                ]
+            );
             return;
         }
 
@@ -181,6 +345,15 @@ final class Foundation_Pathless
         if (is_admin() && class_exists('FP_Admin_UI')) {
             FP_Admin_UI::init();
         }
+
+        foundation_pathless_log_to_core(
+            'info',
+            'addon_bootstrap_completed',
+            [
+                'admin_ui' => is_admin(),
+                'scanner_process' => is_object($this->scanner_process),
+            ]
+        );
     }
 
     /**

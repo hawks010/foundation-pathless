@@ -14,6 +14,14 @@ class FP_Admin_UI {
         ];
     }
 
+    private static function use_core_parent_menu(): bool {
+        return function_exists('foundation_pathless_core_is_available') && foundation_pathless_core_is_available();
+    }
+
+    private static function parent_menu_slug(): string {
+        return self::use_core_parent_menu() ? 'foundation-core' : 'foundation-by-inkfire';
+    }
+
     public static function enqueue_admin_assets($hook) {
         if (!in_array($hook, self::admin_hooks(), true)) {
             return;
@@ -68,9 +76,9 @@ class FP_Admin_UI {
 
     public static function add_admin_menu() {
         global $admin_page_hooks;
-        $parent_slug = 'foundation-by-inkfire';
+        $parent_slug = self::parent_menu_slug();
 
-        if (empty($admin_page_hooks[$parent_slug])) {
+        if (!self::use_core_parent_menu() && empty($admin_page_hooks[$parent_slug])) {
             add_menu_page(
                 __('Foundation', 'foundation-pathless'),
                 __('Foundation', 'foundation-pathless'),
